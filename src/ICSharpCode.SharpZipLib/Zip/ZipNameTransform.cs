@@ -1,18 +1,19 @@
+using ICSharpCode.SharpZipLib.Core;
 using System;
 using System.IO;
 using System.Text;
-using ICSharpCode.SharpZipLib.Core;
 
 namespace ICSharpCode.SharpZipLib.Zip
 {
 	/// <summary>
 	/// ZipNameTransform transforms names as per the Zip file naming convention.
 	/// </summary>
-	/// <remarks>The use of absolute names is supported although its use is not valid 
+	/// <remarks>The use of absolute names is supported although its use is not valid
 	/// according to Zip naming conventions, and should not be used if maximum compatability is desired.</remarks>
 	public class ZipNameTransform : INameTransform
 	{
 		#region Constructors
+
 		/// <summary>
 		/// Initialize a new instance of <see cref="ZipNameTransform"></see>
 		/// </summary>
@@ -28,7 +29,8 @@ namespace ICSharpCode.SharpZipLib.Zip
 		{
 			TrimPrefix = trimPrefix;
 		}
-		#endregion
+
+		#endregion Constructors
 
 		/// <summary>
 		/// Static constructor.
@@ -61,11 +63,15 @@ namespace ICSharpCode.SharpZipLib.Zip
 		public string TransformDirectory(string name)
 		{
 			name = TransformFile(name);
-			if (name.Length > 0) {
-				if (!name.EndsWith("/", StringComparison.Ordinal)) {
+			if (name.Length > 0)
+			{
+				if (!name.EndsWith("/", StringComparison.Ordinal))
+				{
 					name += "/";
 				}
-			} else {
+			}
+			else
+			{
 				throw new ZipException("Cannot have an empty directory name");
 			}
 			return name;
@@ -78,34 +84,32 @@ namespace ICSharpCode.SharpZipLib.Zip
 		/// <returns>The transformed name.</returns>
 		public string TransformFile(string name)
 		{
-			if (name != null) {
+			if (name != null)
+			{
 				string lowerName = name.ToLower();
-				if ((trimPrefix_ != null) && (lowerName.IndexOf(trimPrefix_, StringComparison.Ordinal) == 0)) {
+				if ((trimPrefix_ != null) && (lowerName.IndexOf(trimPrefix_, StringComparison.Ordinal) == 0))
+				{
 					name = name.Substring(trimPrefix_.Length);
 				}
 
 				name = name.Replace(@"\", "/");
-				name = WindowsPathUtils.DropPathRoot(name);
+				name = PathUtils.DropPathRoot(name);
 
-				// Drop any leading slashes.
-				while ((name.Length > 0) && (name[0] == '/')) {
-					name = name.Remove(0, 1);
-				}
-
-				// Drop any trailing slashes.
-				while ((name.Length > 0) && (name[name.Length - 1] == '/')) {
-					name = name.Remove(name.Length - 1, 1);
-				}
+				// Drop any leading and trailing slashes.
+				name = name.Trim('/');
 
 				// Convert consecutive // characters to /
 				int index = name.IndexOf("//", StringComparison.Ordinal);
-				while (index >= 0) {
+				while (index >= 0)
+				{
 					name = name.Remove(index, 1);
 					index = name.IndexOf("//", StringComparison.Ordinal);
 				}
 
 				name = MakeValidName(name, '_');
-			} else {
+			}
+			else
+			{
 				name = string.Empty;
 			}
 			return name;
@@ -116,11 +120,14 @@ namespace ICSharpCode.SharpZipLib.Zip
 		/// </summary>
 		/// <remarks>The prefix is trimmed before any conversion from
 		/// a windows path is done.</remarks>
-		public string TrimPrefix {
+		public string TrimPrefix
+		{
 			get { return trimPrefix_; }
-			set {
+			set
+			{
 				trimPrefix_ = value;
-				if (trimPrefix_ != null) {
+				if (trimPrefix_ != null)
+				{
 					trimPrefix_ = trimPrefix_.ToLower();
 				}
 			}
@@ -132,25 +139,31 @@ namespace ICSharpCode.SharpZipLib.Zip
 		/// <param name="name">The name to force valid</param>
 		/// <param name="replacement">The replacement character to use.</param>
 		/// <returns>Returns a valid name</returns>
-		static string MakeValidName(string name, char replacement)
+		private static string MakeValidName(string name, char replacement)
 		{
 			int index = name.IndexOfAny(InvalidEntryChars);
-			if (index >= 0) {
+			if (index >= 0)
+			{
 				var builder = new StringBuilder(name);
 
-				while (index >= 0) {
+				while (index >= 0)
+				{
 					builder[index] = replacement;
 
-					if (index >= name.Length) {
+					if (index >= name.Length)
+					{
 						index = -1;
-					} else {
+					}
+					else
+					{
 						index = name.IndexOfAny(InvalidEntryChars, index + 1);
 					}
 				}
 				name = builder.ToString();
 			}
 
-			if (name.Length > 0xffff) {
+			if (name.Length > 0xffff)
+			{
 				throw new PathTooLongException();
 			}
 
@@ -173,10 +186,14 @@ namespace ICSharpCode.SharpZipLib.Zip
 		{
 			bool result = (name != null);
 
-			if (result) {
-				if (relaxed) {
+			if (result)
+			{
+				if (relaxed)
+				{
 					result = name.IndexOfAny(InvalidEntryCharsRelaxed) < 0;
-				} else {
+				}
+				else
+				{
 					result =
 						(name.IndexOfAny(InvalidEntryChars) < 0) &&
 						(name.IndexOf('/') != 0);
@@ -209,12 +226,88 @@ namespace ICSharpCode.SharpZipLib.Zip
 		}
 
 		#region Instance Fields
-		string trimPrefix_;
-		#endregion
+
+		private string trimPrefix_;
+
+		#endregion Instance Fields
 
 		#region Class Fields
-		static readonly char[] InvalidEntryChars;
-		static readonly char[] InvalidEntryCharsRelaxed;
-		#endregion
+
+		private static readonly char[] InvalidEntryChars;
+		private static readonly char[] InvalidEntryCharsRelaxed;
+
+		#endregion Class Fields
+	}
+
+	/// <summary>
+	/// An implementation of INameTransform that transforms entry paths as per the Zip file naming convention.
+	/// Strips path roots and puts directory separators in the correct format ('/')
+	/// </summary>
+	public class PathTransformer : INameTransform
+	{
+		/// <summary>
+		/// Initialize a new instance of <see cref="PathTransformer"></see>
+		/// </summary>
+		public PathTransformer()
+		{
+		}
+
+		/// <summary>
+		/// Transform a windows directory name according to the Zip file naming conventions.
+		/// </summary>
+		/// <param name="name">The directory name to transform.</param>
+		/// <returns>The transformed name.</returns>
+		public string TransformDirectory(string name)
+		{
+			name = TransformFile(name);
+			
+			if (name.Length > 0)
+			{
+				if (!name.EndsWith("/", StringComparison.Ordinal))
+				{
+					name += "/";
+				}
+			}
+			else
+			{
+				throw new ZipException("Cannot have an empty directory name");
+			}
+
+			return name;
+		}
+
+		/// <summary>
+		/// Transform a windows file name according to the Zip file naming conventions.
+		/// </summary>
+		/// <param name="name">The file name to transform.</param>
+		/// <returns>The transformed name.</returns>
+		public string TransformFile(string name)
+		{
+			if (name != null)
+			{
+				// Put separators in the expected format.
+				name = name.Replace(@"\", "/");
+
+				// Remove the path root.
+				name = PathUtils.DropPathRoot(name);
+
+				// Drop any leading and trailing slashes.
+				name = name.Trim('/');
+
+				// Convert consecutive // characters to /
+				int index = name.IndexOf("//", StringComparison.Ordinal);
+				while (index >= 0)
+				{
+					name = name.Remove(index, 1);
+					index = name.IndexOf("//", StringComparison.Ordinal);
+				}
+			}
+			else
+			{
+				name = string.Empty;
+			}
+
+			return name;
+		}
 	}
 }
